@@ -92,16 +92,63 @@ namespace PdfReader
                     Sentence = s,
                     Index = i + lastIndex,
                 })
-                .SkipWhile(s => !Regex.IsMatch(s.Sentence, "[Оо]сновн(ым|ыми|ой)[\\s\\w]*явл.*"))
+                .SkipWhile(s => !Regex.IsMatch(s.Sentence, "[Оо]сно[\\s\\w]*явл.*"))
                 .Skip(1)
-                .TakeWhile(s => Regex.IsMatch(s.Sentence, "\\d{1}\\s*\\..*"), true)
+                .TakeWhile(s => Regex.IsMatch(s.Sentence, "((\\d{1}\\s*\\..*) | [\\s\\w]*\\.)"))
                 .ToList();
 
                 if (!tasks.Any()) break;
 
                 lastIndex = tasks.Last().Index + 1;
                 Console.WriteLine($"Обработано {(Convert.ToDouble(lastIndex) / totalWordsCount * 100):0.00}% (позиция {lastIndex} из {totalWordsCount})");
-                workTasks.Add(tasks.Select(t => t.Sentence));
+                workTasks.Add(tasks.Take(10).Select(t => t.Sentence));
+            }
+
+            return workTasks;
+        }
+
+        public static IList<IEnumerable<string>> GetQuestions(IEnumerable<Page> pages)
+        {
+
+            int lastIndex = 0;
+            var words = pages.SelectMany(p => p.GetWords()).ToList();
+            var totalWordsCount = words.Count();
+
+            IList<IEnumerable<string>> workTasks = new List<IEnumerable<string>> { };
+
+            var sentences = new List<string> { };
+            StringBuilder sb = new StringBuilder();
+            for (int i = 0; i < words.Count(); i++)
+            {
+                var word = words[i];
+                if (Regex.IsMatch(word.Text, "\\d{1}\\.")) sb.Append(word.Text + " ");
+                else if (!word.Text.EndsWith('.') && !word.Text.EndsWith(':') && !word.Text.EndsWith(';')) sb.Append(word.Text + " ");
+                else
+                {
+                    sb.Append(words[i].Text);
+                    sentences.Add(sb.ToString().Trim());
+                    sb.Clear();
+                }
+            }
+
+            while (lastIndex <= words.Count())
+            {
+                var tasks = sentences.Skip(lastIndex)
+                .Select((s, i) => new
+                {
+                    Sentence = s,
+                    Index = i + lastIndex,
+                })
+                .SkipWhile(s => !Regex.IsMatch(s.Sentence, "[Оо]сно[\\s\\w]*явл.*"))
+                .Skip(1)
+                .TakeWhile(s => Regex.IsMatch(s.Sentence, "((\\d{1}\\s*\\..*) | [\\s\\w]*\\.)"))
+                .ToList();
+
+                if (!tasks.Any()) break;
+
+                lastIndex = tasks.Last().Index + 1;
+                Console.WriteLine($"Обработано {(Convert.ToDouble(lastIndex) / totalWordsCount * 100):0.00}% (позиция {lastIndex} из {totalWordsCount})");
+                workTasks.Add(tasks.Take(10).Select(t => t.Sentence));
             }
 
             return workTasks;
@@ -109,7 +156,6 @@ namespace PdfReader
 
         static void Main(string[] args)
         {
-            //var path = "D:\\projects\\study\\IUK4_62B\\ksit\\lab1\\Петроченков_ИА_ИУК4_62_Б_ЛР1_Компьютерные_сети_и_интернет_технологии.pdf";
             var path2 = "D:\\projects\\study\\IUK4_62B\\ksit\\Практикум компьютерные сети и интернет технологии+.pdf";
             using var pdf = PdfDocument.Open(path2);
             var pages = pdf.GetPages();
